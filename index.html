@@ -56,7 +56,8 @@ export class {NOME DA ENTIDADE} extends CoreEntity {
     .
 }
 "></textarea>
-
+  <span style="background-color: red;">Obs.: Verifique os atributos que estiverem em vermelho, especialmente os VETORES</span>
+  <br>
   <button onclick="extrairAtributos()">Extrair Atributos</button>
 
   <h3>Atributos Extraídos:</h3>
@@ -133,11 +134,11 @@ class ${nomeEntidade} extends Model<InferAttributes<${nomeEntidade}>, InferCreat
 
   atributos.forEach(atributo => {
     var [nome, tipo] = atributo.split(':').map(item => item.trim());
+    var allowNull = tipo.endsWith('?') ? 'true' : 'false';
 
     // Verifica se o tipo é um tipo padrão permitido
     if (['string', 'number', 'boolean'].includes(tipo)) {
-      var allowNull = tipo.endsWith('?') ? 'true' : 'false';
-
+      
       codigoGerado += `
     @Column
     declare ${nome}: ${tipo};`;
@@ -146,11 +147,34 @@ class ${nomeEntidade} extends Model<InferAttributes<${nomeEntidade}>, InferCreat
         implementationWarn = ''
       }
       counter++;
-
-      codigoGerado += ` 
-    ${implementationWarn}
-    @Column
-    declare ${nome}${tipo}Id: number;`;
+      if(tipo.endsWith('[]')){
+          if(nome.endsWith('?')){
+              codigoGerado += ` 
+            ${implementationWarn}
+          @Column
+          declare ${nome.replace(/\?/g, '')}${tipo.replace(/\[|\]/g, '')}Id?: number;`;
+          }else{
+              codigoGerado += ` 
+          ${implementationWarn}
+        @Column
+        declare ${nome}${tipo.replace(/\[|\]/g, '')}Id: number;`;
+        }
+        
+      }else{
+        if(nome.endsWith('?')){
+              codigoGerado += ` 
+            ${implementationWarn}
+        @Column
+        declare ${nome.replace(/\?/g, '')}${tipo}Id?: number;`;
+          }else{
+            codigoGerado += ` 
+      ${implementationWarn}
+      @Column
+      declare ${nome}${tipo}Id: number;`;
+          }
+        
+      }
+      
     }
   });
 
@@ -176,92 +200,6 @@ export default ${nomeEntidade}`;
   document.getElementById('codigoGerado').value = codigoGerado;
 }
 
-function gerarMigration() {
-  var nomeEntidade = document.getElementById('nomeEntidade').value;
-  var atributosTexto = document.getElementById('atributosExtratos').textContent;
-
-  var codigoMigrationGerado = `
-'use strict';
-
-/** @type {import('sequelize-cli').Migration} */
-module.exports = {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('${nomeEntidade}', {
-      id: {
-        type: Sequelize.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-      },`;
-
-    atributosTexto.split(';').forEach(atributo => {
-      var [nome, tipo, podeSerNulo] = atributo.split(':').map(item => item.trim());
-
-      // Adaptação para tipos não padrões
-      var tipoSequelize = 'INTEGER'; // Defina o tipo padrão para tipos não padrões
-
-      // Adaptação para 'type: Sequelize'
-      if (tipo.toLowerCase() === 'sequelize') {
-        codigoMigrationGerado += `
-      ${nome}Id: {
-        type: Sequelize.${tipoSequelize},
-        allowNull: ${podeSerNulo === 'true' ? 'true' : 'false'},
-      },`;
-      } else {
-        codigoMigrationGerado += `
-      ${nome}: {
-        type: Sequelize.${tipoSequelize},
-        allowNull: ${podeSerNulo === 'true' ? 'true' : 'false'},
-      },`;
-      }
-    });
-
-    // Adicionar o restante do template
-    codigoMigrationGerado += `
-      createdBy: {
-        allowNull: false,
-        type: Sequelize.UUID,
-        references: {
-          model: 'Users',
-          key: 'id',
-          as: 'createdBy',
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'CASCADE',
-      },
-      updatedBy: {
-        allowNull: false,
-        type: Sequelize.UUID,
-        references: {
-          model: 'Users',
-          key: 'id',
-          as: 'updatedBy',
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'CASCADE',
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-      },
-      deletedAt: {
-        allowNull: true,
-        type: Sequelize.DATE,
-      },
-    });
-  },
-
-  async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('${nomeEntidade}');
-  }
-};`;
-
-    // Exibir o código gerado no textarea
-    document.getElementById('codigoMigrationGerado').value = codigoMigrationGerado;
-}
 
 function gerarMigracao() {
   var nomeEntidade = document.getElementById('nomeEntidade').value;
@@ -330,13 +268,14 @@ module.exports = {
     var codigoAtributos = '';
 
     atributos.forEach(atributo => {
+      
       var [nome, tipo] = atributo.split(':').map(item => item.trim());
-
       // Verifica se o tipo é um tipo padrão permitido
       if (['string', 'number', 'boolean'].includes(tipo)) {
         // Verifica se o tipo termina com '?' para determinar allowNull
-        var allowNull = tipo.endsWith('?') ? 'true' : 'false';
-
+        var allowNull = nome.endsWith('?') ? 'true' : 'false';
+        console.log(allowNull)
+        
         codigoAtributos += `
       ${nome}: {
         type: Sequelize.${tipo.replace(/\?$/, '')},
@@ -345,7 +284,7 @@ module.exports = {
       }else {
         
         // Verifica se o tipo termina com '?' para determinar allowNull
-        var allowNull = tipo.endsWith('?') ? 'true' : 'false';
+        var allowNull = nome.endsWith('?') ? 'true' : 'false';
 
         codigoAtributos += `
       ${nome}: {
